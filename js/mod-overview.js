@@ -50,7 +50,11 @@
       vols: MAO.volumes.length, arts: arts.length,
       words: words, span: (y1 - y0), y0: y0, y1: y1,
       skills: MAO.skills.length, quotes: MAO.quotes.length,
-      glossary: MAO.glossary.length
+      glossary: MAO.glossary.length,
+      curated: (function () {
+        var cur = (MAO.data && MAO.data.curated) || {};
+        return Object.keys(cur).reduce(function (a, k) { return a + (cur[k] || []).length; }, 0);
+      })()
     };
   }
 
@@ -208,7 +212,7 @@
       [
         ['timeline', '历史时间轴', '1925–1957 年 ' + S.arts + ' 篇文章的年代分布与密度，可缩放查看'],
         ['library', '文章阅览室', '按卷、标签、关键词检索；每篇配三分钟速读、论证结构与原文'],
-        ['methods', '方法论工坊', S.skills + ' 个精炼方法论 + 问题诊断器；并附五卷方法图谱'],
+        ['methods', '方法论工坊', '五卷共 ' + S.curated + ' 个方法论（骨架 / 步骤 / 边界三段）+ 问题诊断器'],
         ['glossary', '概念词典', S.glossary + ' 个核心术语（分卷可查），重点在"作者本意 ≠ 日常用法"'],
         ['quotes', '金句摭拾', S.quotes + ' 条原文引录，标注出处，可复制'],
         ['digest', '整书速览', '五卷同一模板：主旨、核心问题、骨架、关键术语、可迁移方法、读时要打的折扣']
@@ -235,7 +239,8 @@
         '正文取自五卷原文共 ' + MAO.fmtNum(S.words) + ' 字；每篇的"三分钟速读 / 文章结构 / 关键论证 / 核心概念 / 方法候选"' +
         '由逐篇解构生成。整书速览按五卷分别整理了主旨、骨架、关键术语与精华长文；' +
         '方法图谱收录从五卷逐篇解构中抽取并跨篇去重的方法，每个方法标注具体做法与出自哪些篇目；' +
-        '另有 ' + S.skills + ' 个经完整蒸馏、带触发条件与适用边界的方法论，见「方法论工坊」。' +
+        '「方法论工坊」收录五卷共 ' + S.curated + ' 个方法论，每个都有骨架 / 步骤 / 边界三段结构（其中第一卷 ' +
+        S.skills + ' 个另附触发信号与问题诊断器）。' +
         '本站以文献与方法论视角编排，供检索与研读之用。' +
         '</div>';
       w4.appendChild(note);

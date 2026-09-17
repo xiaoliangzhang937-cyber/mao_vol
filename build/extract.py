@@ -431,6 +431,59 @@ core["overview"] = clean_pipeline(read(os.path.join(ROOT, "mao-vol1", "reference
 core["digest"] = clean_pipeline(read(os.path.join(ROOT, "mao-vol1", "references", "DIGEST.md")))
 core["router"] = read(os.path.join(ROOT, "mao-vol1", "SKILL.md"))
 core["volIntros"] = VOLUME_INTROS
+# ---------- 统一方法论结构（I 骨架 / E 步骤 / B 边界），五卷同构 ----------
+def parse_skill_ieb(body):
+    """从第一卷 skill 的 SKILL.md 正文提取 I/E/B 三段"""
+    def seg(start_pat, end_pats):
+        m = re.search(start_pat, body, re.M)
+        if not m:
+            return ''
+        rest = body[m.end():]
+        cut = len(rest)
+        for ep in end_pats:
+            m2 = re.search(ep, rest, re.M)
+            if m2 and m2.start() < cut:
+                cut = m2.start()
+        return rest[:cut].strip()
+
+    # 注意：结束标记只用二级标题 `## `，不能用 `##+`——否则会把段内的 ### 也当成边界
+    i_txt = seg(r'^##+\s*I\s*[\u2014\-\u2013]{1,2}\s*\u65b9\u6cd5\u8bba\u9aa8\u67b6[^\n]*$',
+                [r'^##\s+E\s*[\u2014\-\u2013]'])
+    e_txt = seg(r'^##+\s*E\s*[\u2014\-\u2013]{1,2}\s*\u53ef\u6267\u884c\u6b65\u9aa4[^\n]*$',
+                [r'^##\s+B\s*[\u2014\-\u2013]'])
+    b_txt = seg(r'^##+\s*B\s*[\u2014\-\u2013]{1,2}\s*\u8fb9\u754c[^\n]*$',
+                [r'^##\s+(?!B)'])
+
+    steps = []
+    for m in re.finditer(r'^\d+\.\s*\*\*(.+?)\*\*\s*\n([\s\S]*?)(?=^\d+\.\s*\*\*|\Z)', e_txt, re.M):
+        steps.append({'t': m.group(1).strip(), 'd': m.group(2).strip()})
+    if not steps and e_txt:
+        steps = [{'t': '执行步骤', 'd': e_txt}]
+    return i_txt, steps, b_txt
+
+
+curated_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "curated_methods.json")
+if os.path.isfile(curated_path):
+    curated = json.loads(io.open(curated_path, encoding="utf-8").read())
+    v1 = []
+    for s in core["skills"]:
+        i_txt, steps, b_txt = parse_skill_ieb(s.get("body", ""))
+        v1.append({
+            "t": s.get("title") or s.get("id"),
+            "i": i_txt,
+            "e": steps,
+            "b": b_txt,
+            "g": s.get("group", ""),
+            "p": [],
+            "sid": s.get("id", ""),
+        })
+    curated["1"] = v1
+    core["curated"] = curated
+    tot = sum(len(v) for v in curated.values())
+    ok3 = sum(1 for v in curated.values() for it in v if it.get("i") and it.get("e") and it.get("b"))
+    print("  · 统一方法论：五卷共 %d 个，其中 %d 个 I/E/B 三段齐全" % (tot, ok3))
+else:
+    print("  · 缺 curated_methods.json（未并入精选方法论）")
 
 # ---------- 各卷的总览与精华（统一 schema，第一卷同样纳入） ----------
 vol_content = {}
