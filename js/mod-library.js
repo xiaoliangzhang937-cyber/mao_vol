@@ -116,7 +116,7 @@ function libDebounce(fn, ms) {
 function libEnsureCss() {
   if (document.getElementById('mod-library-css')) return;
   var css = [
-    '.lib-wrap{max-width:var(--maxw);margin:0 auto}',
+    '.lib-wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}',
     /* --- 筛选区 --- */
     '.lib-panel{padding:16px 18px;margin-bottom:16px}',
     '.lib-row{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-top:1px dashed var(--line)}',

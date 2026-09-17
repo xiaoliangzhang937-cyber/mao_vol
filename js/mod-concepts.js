@@ -31,7 +31,7 @@
   function injectCSS() {
     if (document.getElementById(CSS_ID)) return;
     var css = [
-      '.mc-wrap{max-width:1180px;margin:0 auto;padding:8px 0 40px}',
+      '.mc-wrap{max-width:1180px;margin:0 auto;padding:8px 24px 40px}',
 
       /* --- 通用页头 --- */
       '.mc-head{margin-bottom:18px}',

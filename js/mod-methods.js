@@ -485,20 +485,29 @@
 
   function render(root, head, query) {
     injectStyle();
-    state = { g: '全部', q: '', open: null, diag: '' };
+    injectVolStyle();
+    state = { g: '全部', q: '', open: null, diag: '', vol: 0, volLimit: 40 };
     refs = {};
     root.innerHTML = '';
 
-    root.appendChild(buildIntro());
-    root.appendChild(buildWall());     // A
-    root.appendChild(buildDiag());     // B
-    root.appendChild(buildPaths());    // C
+    /* 与其他页面保持一致：内容统一包在 .wrap 里（max-width 1240 + 左右留白） */
+    var wrap = mk('div', 'wrap');
+    root.appendChild(wrap);
+    refs.wrap = wrap;
+
+    wrap.appendChild(buildIntro());
+    wrap.appendChild(buildVolBar());    // 卷切换：第一 ~ 五卷
+    wrap.appendChild(buildWall());      // A（第一卷：22 个精炼方法论）
+    wrap.appendChild(buildDiag());      // B
+    wrap.appendChild(buildPaths());     // C
+    wrap.appendChild(buildVolPanel());  // D（第二 ~ 五卷：该卷方法）
 
     /* 重复渲染同一容器时先解绑，避免事件叠加 */
     if (root.__mwClick) root.removeEventListener('click', root.__mwClick);
     root.__mwClick = onClick;
     root.addEventListener('click', onClick);
     renderGrid();
+    syncVol();
 
     /* 深链支持：① 全局搜索命中方法论时写入 mao_skill_focus，这里自动展开 */
     var focus = null;
@@ -520,12 +529,14 @@
     var sec = mk('section', 'mw-sec');
     var box = mk('div', 'mw-intro');
     box.innerHTML =
-      '<p>这里的 <b>22 个方法论</b>，是从《毛泽东选集》<b>第一卷 18 篇文章</b>中蒸馏出来的可复用思维工具。' +
-      '它们不是语录摘抄，而是把作者在特定处境下的判断方式，抽成了带触发条件、操作步骤与适用边界的结构化方法' +
-      '（原形态是一套 agent skill：每个方法含「骨架 / 步骤 / 边界」三段）。</p>' +
+      '<p>这里有两层内容，用上方「方法论来源」切换：<b>第一卷</b>是 <b>18 篇文章蒸馏出的 22 个方法论</b>，' +
+      '每个都带触发条件、操作步骤与适用边界（原形态是一套 agent skill：含「骨架 / 步骤 / 边界」三段）；' +
+      '<b>第二至五卷</b>则是该卷各篇逐篇解构中抽取、并做过跨篇去重的方法条目，' +
+      '颗粒度更细，每条标注具体做法与出处篇目。</p>' +
       '<p><b>怎么用：</b>① 不知道该用哪个方法 → 用下方「问题诊断器」描述你的现实困境，它会按触发信号匹配；' +
       '② 已经知道要看哪个 → 直接在卡片墙点开全文，正文顶部有章节小导航；' +
-      '③ 一个方法不够 → 看页面底部的「组合路径」，那里给出的是有依赖关系支撑的调用顺序。</p>' +
+      '③ 一个方法不够 → 看页面底部的「组合路径」，那里给出的是有依赖关系支撑的调用顺序；' +
+      '④ 想按卷查方法 → 用上面的切换条，或到「整书速览 → 方法图谱」一次浏览五卷全部方法。</p>' +
       '<p class="muted small">这套体系自带一条设计原则：<b>不硬套</b>。若你的问题不属于方法论能处理的范围' +
       '（纯事实查询、日常琐事、范式完全不同的专业问题），诊断器会明确告知不适配，而不是硬塞一个答案。</p>';
 
@@ -539,6 +550,271 @@
     box.appendChild(jump);
     sec.appendChild(box);
     return sec;
+  }
+
+  /* =======================================================================
+   * 卷切换与「第二 ~ 五卷」方法视图
+   * 第一卷：22 个经完整蒸馏的方法论（卡片墙 / 诊断器 / 组合路径）
+   * 其余四卷：该卷各篇逐篇解构中抽取、跨篇去重后的方法条目
+   * ===================================================================== */
+
+  /* 各卷方法论特征（据该卷篇目与方法条目归纳） */
+  var VOL_NOTE = {
+    2: '这是「以弱对强、把时间当资源」的一卷。方法集中在三处：怎样把互相矛盾的因素全部摆出来比较，从而判断整体前途，' +
+       '而不是抓住一个因素就下结论；怎样在必须维持的合作关系里保住自主——联合又斗争、让步设边界、斗争自设分寸；' +
+       '怎样把一场无法速胜的战争拆成有阶段的长期部署。把「持久」从一句决心变成可执行的安排，是这一卷的方法底色。',
+    3: '这一卷方法数量最少，方向也最「向内」——它处理的是组织自身的问题。集中在三类：怎样统一认识（学习、检查、' +
+       '批评与自我批评的成套程序）；怎样把一般号召落到具体单位（一般和个别相结合、领导和群众相结合）；' +
+       '怎样在文艺、经济、政策这些具体领域里避免主观主义。把「纠正错误」做成一套可重复、可推广的程序，是它的特征。',
+    4: '方法数量最多的一卷，因为几乎每篇都是临机的判断与部署。集中在四类：怎样以对方实际做过的事、而非它宣称的意图来判断对手；' +
+       '怎样在劣势期不计较一城一地、专打歼灭有生力量；怎样用一次次小胜累积出力量对比的根本变化；以及大量纠偏类方法——' +
+       '按地区条件分级施策、划清打击界限、对可争取者区别对待。把「赢」拆成可累积、可检验的小步骤，是这一卷的方法特征。',
+    5: '工作对象从战场转到了国家，方法也随之转向「控制节奏」。集中在四类：力量有限时怎样分配打击面（不要四面出击，' +
+       '在一个方向让步以集中另一个方向）；怎样用一条总方向统摄各项具体政策，以便判断走得过快还是过慢；' +
+       '怎样按条件成熟度分步推进改造、并留出「刹车」的余地；怎样区分矛盾性质、分别用说服或强制的方法处理。' +
+       '把治理当成一个需要校准节奏的过程，是这一卷的方法特征。'
+  };
+
+  var volData = null;   // window.MAO_METHODS 缓存
+
+  function injectVolStyle() {
+    if (document.getElementById('mw-vstyle')) return;
+    var s = document.createElement('style');
+    s.id = 'mw-vstyle';
+    s.textContent = [
+      '.mw-volbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:6px 0 4px;' +
+        'padding:14px 16px;background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r)}',
+      '.mw-volbar-lab{font-family:var(--serif);font-weight:700;font-size:14px;color:var(--ink);margin-right:4px}',
+      '.mw-volbar-hint{margin-left:auto}',
+      '.mw-volhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}',
+      '.mw-volhead-meta{font-size:12.5px;color:var(--ink-3)}',
+      '.mw-volnote{font-size:14.5px;line-height:1.95;color:var(--ink-2);background:var(--paper-2);' +
+        'border-left:3px solid var(--gold);border-radius:var(--r);padding:14px 18px;margin-bottom:16px}',
+      '.mw-volbar2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}',
+      '.mw-volsearch{flex:1;min-width:200px;padding:7px 13px;border:1px solid var(--line);border-radius:20px;' +
+        'background:var(--paper-2);font-size:13px;font-family:var(--sans);color:var(--ink);outline:none}',
+      '.mw-volsearch:focus{border-color:var(--red);background:#fff}',
+      '.mw-vcard{border:1px solid var(--line);border-left:3px solid var(--line-2);border-radius:var(--r);' +
+        'background:var(--paper-2);padding:13px 16px;margin-bottom:9px;cursor:pointer;transition:all .16s}',
+      '.mw-vcard:hover{border-color:var(--line-2);box-shadow:var(--shadow);transform:translateY(-1px)}',
+      '.mw-vcard-t{font-family:var(--serif);font-size:15.5px;font-weight:700;line-height:1.5;color:var(--ink)}',
+      '.mw-vcard-d{font-size:13.5px;color:var(--ink-2);line-height:1.8;margin-top:4px}',
+      '.mw-vcard-x{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line-2)}',
+      '.mw-vsub{margin-bottom:10px}',
+      '.mw-vsub-t{font-size:14px;font-weight:600;color:var(--ink)}',
+      '.mw-vsub-d{font-size:13px;color:var(--ink-2);line-height:1.75;margin-top:2px}',
+      '.mw-vsub-s{margin-top:5px}',
+      '.mw-src-tag{display:inline-block;padding:2px 8px;margin:0 5px 5px 0;border-radius:4px;' +
+        'background:rgba(158,43,37,.07);color:var(--red);font-size:11.5px;cursor:pointer}',
+      '.mw-src-tag:hover{background:rgba(158,43,37,.14)}',
+      '.mw-src-tag.dead{background:var(--paper-3);color:var(--ink-3);cursor:default}',
+      '.mw-vloading,.mw-vempty{padding:26px 10px;text-align:center;color:var(--ink-3);' +
+        'font-family:var(--serif);font-size:14px}',
+      '.mw-voltail{margin-top:16px;padding-top:12px;border-top:1px dashed var(--line-2);line-height:1.85}'
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  /* ---------- 卷切换条 ---------- */
+  function buildVolBar() {
+    var sec = mk('section', 'mw-sec mw-volbar');
+    sec.id = 'mw-volbar';
+    sec.appendChild(mk('span', 'mw-volbar-lab', '方法论来源'));
+    refs.volChips = [];
+    var opts = [{ v: 0, t: '第一卷', n: skills().length }];
+    [2, 3, 4, 5].forEach(function (v) { opts.push({ v: v, t: MKVOL(v), n: null }); });
+    opts.forEach(function (o) {
+      var b = mk('button', 'chip' + (state.vol === o.v ? ' on' : ''),
+        esc(o.t) + (o.n ? ' <span class="n">' + o.n + '</span>' : ''));
+      b.setAttribute('data-act', 'vol');
+      b.setAttribute('data-id', String(o.v));
+      if (o.v === 0) b.title = '22 个经完整蒸馏的方法论（含步骤与适用边界）';
+      else b.title = '该卷方法条目（逐篇解构抽取 + 跨篇去重）';
+      refs.volChips.push(b);
+      sec.appendChild(b);
+    });
+    refs.volHint = mk('span', 'mw-volbar-hint small muted', '');
+    sec.appendChild(refs.volHint);
+    return sec;
+  }
+
+  function MKVOL(v) {
+    var m = M();
+    return (typeof m.volName === 'function') ? m.volName(v) : ('第' + '一二三四五'[v - 1] + '卷');
+  }
+
+  /* ---------- 第二 ~ 五卷方法面板 ---------- */
+  function buildVolPanel() {
+    var sec = mk('section', 'mw-sec');
+    sec.id = 'mw-volpanel';
+    sec.style.display = 'none';
+
+    var head = mk('div', 'mw-volhead');
+    head.id = 'mw-volhead';
+    sec.appendChild(head);
+
+    var note = mk('div', 'mw-volnote');
+    note.id = 'mw-volnote';
+    sec.appendChild(note);
+
+    var bar = mk('div', 'mw-volbar2');
+    var inp = mk('input', 'mw-volsearch');
+    inp.type = 'search';
+    inp.placeholder = '搜索本卷方法名或说明…';
+    inp.addEventListener('input', function () {
+      state.volLimit = 40;
+      paintVolMethods(state.vol);
+    });
+    bar.appendChild(inp);
+    var cnt = mk('span', 'mw-volcount small muted', '');
+    bar.appendChild(cnt);
+    sec.appendChild(bar);
+
+    var body = mk('div', 'mw-volbody');
+    sec.appendChild(body);
+
+    var tail = mk('div', 'mw-voltail small muted');
+    tail.innerHTML = '这些方法直接取自该卷各篇的逐篇解构，并做过跨篇去重，颗粒度比第一卷那 22 个精炼方法论更细：' +
+      '每条都标注具体做法与出自哪些篇目。需要一次浏览全部五卷的方法，可到「整书速览 → 方法图谱」。';
+    sec.appendChild(tail);
+
+    refs.volSearch = inp;
+    refs.volCount = cnt;
+    refs.volBody = body;
+    return sec;
+  }
+
+  /* 切换卷时同步显隐与内容 */
+  function syncVol() {
+    var first = state.vol === 0;
+    ['mw-wall', 'mw-diag', 'mw-paths'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = first ? '' : 'none';
+    });
+    var panel = document.getElementById('mw-volpanel');
+    if (panel) panel.style.display = first ? 'none' : '';
+
+    (refs.volChips || []).forEach(function (b) {
+      var on = parseInt(b.getAttribute('data-id'), 10) === state.vol;
+      b.className = 'chip' + (on ? ' on' : '');
+    });
+
+    if (first) {
+      if (refs.volHint) refs.volHint.textContent = '第一卷 18 篇蒸馏出的精炼方法论，含触发信号、操作步骤与适用边界';
+      return;
+    }
+    if (refs.volHint) refs.volHint.textContent = '从该卷各篇逐篇解构中抽取并跨篇去重的方法条目';
+
+    var note = document.getElementById('mw-volnote');
+    if (note) note.innerHTML = md(VOL_NOTE[state.vol] || '');
+    var head = document.getElementById('mw-volhead');
+    if (head) {
+      var meta = (M().volMeta ? M().volMeta(state.vol) : null) || {};
+      head.innerHTML = '<span class="vol-badge vol-' + state.vol + '">' + esc(MKVOL(state.vol)) + '</span>' +
+        '<span class="mw-volhead-meta">' + esc(meta.span || '') +
+        (meta.count ? (' · ' + meta.count + ' 篇') : '') + '</span>';
+    }
+    loadVolMethods(state.vol);
+  }
+
+  function loadVolMethods(v) {
+    if (volData) { paintVolMethods(v); return; }
+    if (refs.volBody) refs.volBody.innerHTML = '<div class="mw-vloading">正在载入方法数据…</div>';
+    var m = M();
+    if (typeof m.methods !== 'function') {
+      if (refs.volBody) refs.volBody.innerHTML = '<div class="mw-vempty">方法数据不可用</div>';
+      return;
+    }
+    m.methods().then(function (d) {
+      volData = d || {};
+      paintVolMethods(v);
+    }).catch(function () {
+      if (refs.volBody) refs.volBody.innerHTML = '<div class="mw-vempty">方法数据加载失败</div>';
+    });
+  }
+
+  function paintVolMethods(v) {
+    var box = refs.volBody;
+    if (!box) return;
+    var list = (volData && volData[String(v)]) || [];
+    if (!list.length) { box.innerHTML = '<div class="mw-vempty">该卷暂无方法数据</div>'; return; }
+
+    var q = (refs.volSearch && refs.volSearch.value || '').trim().toLowerCase();
+    var arr = list.filter(function (it) {
+      if (!q) return true;
+      if (String(it.t).toLowerCase().indexOf(q) >= 0) return true;
+      if (String(it.d || '').toLowerCase().indexOf(q) >= 0) return true;
+      for (var i = 0; i < (it.sub || []).length; i++) {
+        var s2 = it.sub[i];
+        if (String(s2.t + (s2.d || '')).toLowerCase().indexOf(q) >= 0) return true;
+      }
+      return false;
+    });
+    refs.volArr = arr;
+    if (refs.volCount) refs.volCount.textContent = arr.length + ' / ' + list.length + ' 个方法';
+
+    if (!arr.length) {
+      box.innerHTML = '<div class="mw-vempty">没有匹配的方法，换个词试试</div>';
+      return;
+    }
+    var limit = state.volLimit || 40;
+    var cardColor = (M().volColor ? M().volColor(v) : 'var(--red)');
+    var h = '';
+    arr.slice(0, limit).forEach(function (it) {
+      h += '<div class="mw-vcard" data-vid="' + esc(it.t) + '" style="border-left-color:' + cardColor + '">' +
+        '<div class="mw-vcard-t">' + esc(it.t) + '</div>' +
+        (it.d ? '<div class="mw-vcard-d">' + esc(it.d) + '</div>' : '') +
+        '<div class="mw-vcard-x" hidden></div>' +
+        '</div>';
+    });
+    box.innerHTML = h;
+
+    Array.prototype.forEach.call(box.querySelectorAll('.mw-vcard'), function (card) {
+      card.addEventListener('click', function (ev) {
+        var tg = ev.target;
+        if (tg && tg.getAttribute && tg.getAttribute('data-act')) return;  // 出处标签交给全局委托
+        toggleVolCard(card);
+      });
+    });
+
+    if (arr.length > limit) {
+      var more = mk('button', 'btn', '加载更多（还有 ' + (arr.length - limit) + ' 个）');
+      more.style.marginTop = '12px';
+      more.addEventListener('click', function () {
+        state.volLimit = limit + 60;
+        paintVolMethods(v);
+      });
+      box.appendChild(more);
+    }
+  }
+
+  function toggleVolCard(card) {
+    var x = card.querySelector('.mw-vcard-x');
+    if (!x) return;
+    if (!x.hidden) { x.hidden = true; return; }
+    if (!x.__filled) {
+      var name = card.getAttribute('data-vid');
+      var arr = refs.volArr || [];
+      var it = null;
+      for (var i = 0; i < arr.length; i++) { if (arr[i].t === name) { it = arr[i]; break; } }
+      if (!it) return;
+      var s = '';
+      (it.sub || []).forEach(function (b) {
+        s += '<div class="mw-vsub">' +
+          '<div class="mw-vsub-t">' + esc(b.t) + '</div>' +
+          (b.d ? '<div class="mw-vsub-d">' + esc(b.d) + '</div>' : '') +
+          ((b.p && b.p.length) ? '<div class="mw-vsub-s">出处：' + b.p.map(function (p) {
+            var a = findArticleByTitle(p);
+            return a
+              ? '<span class="mw-src-tag" data-act="article" data-v="' + a.v + '" data-i="' + a.i + '">' + esc(a.t) + '</span>'
+              : '<span class="mw-src-tag dead">' + esc(p) + '</span>';
+          }).join('') + '</div>' : '') +
+          '</div>';
+      });
+      x.innerHTML = s || '<div class="muted small">暂无具体做法</div>';
+      x.__filled = true;
+    }
+    x.hidden = false;
   }
 
   /* ---------- A. 卡片墙 ---------- */
@@ -949,7 +1225,16 @@
     var act = node.getAttribute('data-act');
     var id = node.getAttribute('data-id');
 
-    if (act === 'group') {
+    if (act === 'vol') {
+      state.vol = parseInt(id, 10) || 0;
+      state.volLimit = 40;
+      if (refs.volSearch) refs.volSearch.value = '';
+      syncVol();
+      if (state.vol > 0) {
+        var panel = document.getElementById('mw-volpanel');
+        if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    } else if (act === 'group') {
       state.g = id;
       var bar = node.parentNode;
       var bs = bar.querySelectorAll('.chip');
